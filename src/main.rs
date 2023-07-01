@@ -2,7 +2,8 @@
 
 use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
-use tfhe::prelude::*;
+use std::time::Instant;
+use tfhe::integer::{RadixCiphertextBig, ServerKey};
 
 fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:8070")?;
@@ -15,21 +16,80 @@ fn main() -> std::io::Result<()> {
     }
     Ok(())
 }
-
 fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     // read an int value from the stream
-    let mut buffer = [0u8; 4];
-    stream.read_exact(&mut buffer)?;
-    let value = i32::from_le_bytes(buffer);
+    // buffer for size of each byte array
+    let mut size_buf = [0u8; 4];
+    stream.read_exact(&mut size_buf)?;
+    let size = u32::from_le_bytes(size_buf) as usize;
+    //print size
+    println!("size: {}", size);
 
-    // print the int value received from the client
-    println!("Received value: {}", value);
+    // buffers for byte arrays
+    let mut gambling_percent_data = vec![0u8; size];
+    let mut overspending_score_data = vec![0u8; size];
+    let mut impulsive_buying_score_data = vec![0u8; size];
+    let mut mean_deposited_sum_data = vec![0u8; size];
+    let mut mean_reported_income_data = vec![0u8; size];
+    let mut no_months_deposited_data = vec![0u8; size];
 
-    // send a response back to the client
-    let response = "Hello, client!";
-    stream.write_all(response.as_bytes())?;
+    // read byte arrays from stream
+    let mut server_key_file = std::fs::File::open("server_key.bin")?;
+    let server_key: ServerKey = bincode::deserialize_from(&mut server_key_file)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    stream.read_exact(&mut gambling_percent_data)?;
+    stream.read_exact(&mut overspending_score_data)?;
+    stream.read_exact(&mut impulsive_buying_score_data)?;
+    stream.read_exact(&mut mean_deposited_sum_data)?;
+    stream.read_exact(&mut mean_reported_income_data)?;
+    stream.read_exact(&mut no_months_deposited_data)?;
+
+    let deserialize_now = Instant::now();
+
+    let gambling_percent: RadixCiphertextBig = bincode::deserialize(&gambling_percent_data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    let overspending_score: RadixCiphertextBig = bincode::deserialize(&overspending_score_data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    let impulsive_buying_score: RadixCiphertextBig = bincode::deserialize(&impulsive_buying_score_data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    let mean_deposited_sum: RadixCiphertextBig = bincode::deserialize(&mean_deposited_sum_data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    let mean_reported_income: RadixCiphertextBig = bincode::deserialize(&mean_reported_income_data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    let no_months_deposited: RadixCiphertextBig = bincode::deserialize(&no_months_deposited_data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+
+
+    let elapsed = deserialize_now.elapsed();
+    println!("Deserialization time: {:?}", elapsed);
+
+
+    let fhe_computation_now = Instant::now();
+    // let max = server_key.max_parallelized(&overspending_score, &impulsive_buying_score);
+    // let mut result = server_key.add_parallelized(&gambling_percent, &max);
+    // let condition = server_key.gt_parallelized(&mean_deposited_sum, &mean_reported_income); // 0 - false, 1 - true
+    // let r = server_key.unchecked_scalar_left_shift(&condition, 1); // 1 left shifted by 1 = 2 , 0 left shifted by 1 = 0
+    // let risk_counter = server_key.mul_parallelized(&r, &no_months_deposited);
+    // result = server_key.sub_parallelized(&result, &risk_counter);
+    //
+    // //write result to file
+    // let mut result_file = std::fs::File::create("result.bin")?;
+    // bincode::serialize_into(&mut result_file, &result).unwrap();
+
+    //read result from file
+    let mut result_file = std::fs::File::open("result.bin")?;
+    let result: RadixCiphertextBig = bincode::deserialize_from(&mut result_file)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+
+    let fhe_computation_elapsed = fhe_computation_now.elapsed();
+    println!("Processing time is: {:?}", fhe_computation_elapsed);
+
+    let bytes_size = bincode::serialized_size(&result)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    println!("Serialized size: {}", bytes_size);
+    let bytes_sizes_be = bytes_size.to_be_bytes();
+    stream.write_all(&bytes_sizes_be)?; //all the sizes are the same, so we can send only one
+    bincode::serialize_into(&mut stream, &result).unwrap();
+
     Ok(())
 }
-
-
-

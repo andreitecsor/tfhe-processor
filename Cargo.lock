@@ -350,9 +350,9 @@ dependencies = [
 
 [[package]]
 name = "tfhe"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5eeb374ffce0fcd5688ffdb6347ed8110462c6221292ae1681042849ddce844"
+checksum = "f3190f4b71a71fb8d751313b9d7a5a9b1d439fdf8faedb416999cb82fce5500e"
 dependencies = [
  "aligned-vec",
  "bytemuck",
@@ -368,7 +368,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tfhe-rs-demo"
+name = "tfhe-processor"
 version = "0.1.0"
 dependencies = [
  "bincode",
