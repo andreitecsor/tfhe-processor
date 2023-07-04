@@ -65,21 +65,30 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
 
 
     let fhe_computation_now = Instant::now();
-    // let max = server_key.max_parallelized(&overspending_score, &impulsive_buying_score);
-    // let mut result = server_key.add_parallelized(&gambling_percent, &max);
-    // let condition = server_key.gt_parallelized(&mean_deposited_sum, &mean_reported_income); // 0 - false, 1 - true
-    // let r = server_key.unchecked_scalar_left_shift(&condition, 1); // 1 left shifted by 1 = 2 , 0 left shifted by 1 = 0
-    // let risk_counter = server_key.mul_parallelized(&r, &no_months_deposited);
-    // result = server_key.sub_parallelized(&result, &risk_counter);
-    //
-    // //write result to file
-    // let mut result_file = std::fs::File::create("result.bin")?;
-    // bincode::serialize_into(&mut result_file, &result).unwrap();
+    println!("Starting FHE computation");
+    let max = server_key.max_parallelized(&overspending_score, &impulsive_buying_score);
+    println!("- Max operation done");
+    let mut result = server_key.add_parallelized(&gambling_percent, &max);
+    println!("- Add operation done");
+    let condition = server_key.gt_parallelized(&mean_deposited_sum, &mean_reported_income); // 0 - false, 1 - true
+    println!("- Greater than operation done");
+    let r = server_key.unchecked_scalar_left_shift(&condition, 1); // 1 left shifted by 1 = 2 , 0 left shifted by 1 = 0
+    println!("- Scalar left shift operation done");
+    let risk_counter = server_key.mul_parallelized(&r, &no_months_deposited);
+    println!("- Multiplication operation done");
+    result = server_key.sub_parallelized(&result, &risk_counter);
+    println!("- Subtract operation done");
+    println!("FHE computation done");
+
+
+    //write result to file
+    let mut result_file = std::fs::File::create("result.bin")?;
+    bincode::serialize_into(&mut result_file, &result).unwrap();
 
     //read result from file
-    let mut result_file = std::fs::File::open("result.bin")?;
-    let result: RadixCiphertextBig = bincode::deserialize_from(&mut result_file)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    // let mut result_file = std::fs::File::open("result.bin")?;
+    // let result: RadixCiphertextBig = bincode::deserialize_from(&mut result_file)
+    //     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
     let fhe_computation_elapsed = fhe_computation_now.elapsed();
     println!("Processing time is: {:?}", fhe_computation_elapsed);
