@@ -1,21 +1,28 @@
-#[allow(unused_imports)]
-
-use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
+#[allow(unused_imports)]
+use std::net::{TcpListener, TcpStream};
 use std::time::Instant;
+
 use tfhe::integer::{RadixCiphertextBig, ServerKey};
 
+use crossterm::style::{Color, SetForegroundColor};
+use crossterm::ExecutableCommand;
+use std::io::stdout;
+
 fn main() -> std::io::Result<()> {
+    let mut stdout = stdout();
+    stdout.execute(SetForegroundColor(Color::Blue)).unwrap();
     let listener = TcpListener::bind("127.0.0.1:8070")?;
     println!("Server is listening");
 
     // accept connections and process them serially
     for stream in listener.incoming() {
-        println!("A client initiated connection");
+        println!("Requester's tcp client initiated connection\n");
         std::thread::spawn(move || handle_client(stream?));
     }
     Ok(())
 }
+
 fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     // read an int value from the stream
     // buffer for size of each byte array
@@ -23,7 +30,7 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     stream.read_exact(&mut size_buf)?;
     let size = u32::from_le_bytes(size_buf) as usize;
     //print size
-    println!("size: {}", size);
+    println!("Encrypted data size for each value: {}", size);
 
     // buffers for byte arrays
     let mut gambling_percent_data = vec![0u8; size];
@@ -44,7 +51,6 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     stream.read_exact(&mut mean_reported_income_data)?;
     stream.read_exact(&mut no_months_deposited_data)?;
 
-    let deserialize_now = Instant::now();
 
     let gambling_percent: RadixCiphertextBig = bincode::deserialize(&gambling_percent_data)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
@@ -58,11 +64,6 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
     let no_months_deposited: RadixCiphertextBig = bincode::deserialize(&no_months_deposited_data)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-
-
-    let elapsed = deserialize_now.elapsed();
-    println!("Deserialization time: {:?}", elapsed);
-
 
     let fhe_computation_now = Instant::now();
     println!("Starting FHE computation");
@@ -86,19 +87,19 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     bincode::serialize_into(&mut result_file, &result).unwrap();
 
     //read result from file
-    // let mut result_file = std::fs::File::open("result.bin")?;
-    // let result: RadixCiphertextBig = bincode::deserialize_from(&mut result_file)
-    //     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+//     let mut result_file = std::fs::File::open("result.bin")?;
+//     let result: RadixCiphertextBig = bincode::deserialize_from(&mut result_file)
+//         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
     let fhe_computation_elapsed = fhe_computation_now.elapsed();
     println!("Processing time is: {:?}", fhe_computation_elapsed);
 
     let bytes_size = bincode::serialized_size(&result)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-    println!("Serialized size: {}", bytes_size);
     let bytes_sizes_be = bytes_size.to_be_bytes();
     stream.write_all(&bytes_sizes_be)?; //all the sizes are the same, so we can send only one
     bincode::serialize_into(&mut stream, &result).unwrap();
-
+    println!("Result sent to requester client.");
+    println!("DONE!");
     Ok(())
 }
